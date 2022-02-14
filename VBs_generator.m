@@ -2,7 +2,7 @@
 % Coded by David Marco Castillo, Universidad Miguel Hernández de Elche,
 % dmarco@umh.es
 % Copyright (c) 2021, David Marco Castillo.
-% Last update: 18/07/2021
+% Last update: 14/02/2022
 
 % This code may be freely used, modified and
 % distributed under the GNU General Public License: 
@@ -76,8 +76,8 @@ nB = 1;
 %VectorBeam = 
 %cos(modeamplitudefactor)*exp(-1i*modephasefactor)*modeA*|polcomponentA> +
 %sin(modeamplitudefactor)* exp(1i*modephasefactor)*modeB*|polcomponentB>
-polcomponentsamplitudefactor = pi/4; % Amplitude relation between polarization components
-polcomponentsphasefactor = 0; % Phase relation between polarization components
+polcomponentsamplitudefactor =  pi/4; % Amplitude relation between polarization components
+polcomponentsphasefactor =  0; % Phase relation between polarization components
 
 
 %3: Custom sum. Go down to the function VectorBeam and customize the mode
@@ -117,8 +117,7 @@ intensitytransparency = 1; %set the transparency of the intensity plot.
 plotpolarizationmap = true; % set to true to plot the polarization map
 sizeEllipsefactor = 0.031; % 0.031 gives a nice depiction of the map for 19 ellipses per row/colum.
 NEllipses = 19; % number of ellipses per Row/Column.
-linearthreshold = 0.02; % threshold for phase and amplitude to consider
-%a polarization state as linear.
+linearthreshold = 0.03; % threshold for the normalized Stokes parameter s3 to consider the ellipse as linear.
 intensitythresholddrawellipse = 0.01; % if the normalized intensity
 %of the beam is lower than this value no ellipse will be plotted at that
 %point.
@@ -227,7 +226,6 @@ function PlotIntensity(range,x,y,X,Y,Jx,Jy,interpolate,numberofinterpolationpoin
     caxis([0 1])
     pbaspect([1 1 1])
 end
-
 function PlotPolarizationMap(Jx,Jy,NEllipses,range,sizeEllipse,tol,intensitythresholddrawellipse,ellipselinethickness,linearellipsecolor,righthandedellipsecolor,lefthandedellipsecolor)
     jump = 2*range/(NEllipses-1); %distance between ellipses
     modJout = sqrt((abs(Jx).^2)+(abs(Jy).^2));
@@ -275,6 +273,55 @@ function PlotPolarizationMap(Jx,Jy,NEllipses,range,sizeEllipse,tol,intensitythre
 
 end
 
+
+function PolarizationMap(Jx,Jy,NEllipses,range,sizeEllipse,tol,intensitythresholddrawellipse,ellipselinethickness,linearellipsecolor,righthandedellipsecolor,lefthandedellipsecolor)
+    jump = 2*range/(NEllipses-1); %distance between ellipses
+    modJout = sqrt((abs(Jx).^2)+(abs(Jy).^2));
+ 
+    modJout2 = modJout.^2; %intensity of the ellipses
+    Ex0 = abs(Jx)./modJout;
+    Ey0 = abs(Jy)./modJout;
+    %Phases
+    deltax = angle(Jx);
+    deltay = angle(Jy);
+    Delta = deltay-deltax; %Overall phase for the y component.  
+    t=0:pi/500:2*pi; %parameter for plotting the ellipse
+    
+    hold on
+    for i = 1:NEllipses
+        for j = 1:NEllipses
+            if modJout2(i,j)/max(modJout2(:)) > intensitythresholddrawellipse %%if the intensity
+            %is large enough, plot the ellipse.
+                    
+            %Draw the ellipses in their corresponding position in
+            %the map:
+            Ex = Ex0(i,j)*sin(t)*sizeEllipse - range + (j-1)*jump;
+            Ey = Ey0(i,j)*sin(t+Delta(i,j))*sizeEllipse + range - (i-1)*jump;
+
+            
+            %%Ellipse Handeness:
+           
+            S3 = 2*imag(Jx(i,j)*conj(Jy(i,j)));        
+            %Linear polarization
+            if abs(S3) < tol
+                plot(Ex,Ey,'color',linearellipsecolor,'LineWidth',ellipselinethickness)
+            %Right-handed polarization
+            elseif S3 > 0
+                plot(Ex,Ey,'color',righthandedellipsecolor,'LineWidth',ellipselinethickness)
+            %Left-handed polarization
+            else
+                plot(Ex,Ey,'color',lefthandedellipsecolor,'LineWidth',ellipselinethickness)
+            end
+            pbaspect([1 1 1])
+          
+            else
+            end
+       
+        end %end for loop draw ellipses at rows
+    end %end for loop draw ellipses at columns
+
+end
+
 function [modeA,modeB,Jx,Jy] = VectorBeam(X,Y,R,THETA,z,wavelength,w0,pA,pB,lA,lB,mA,mB,nA,nB,modetype,modeamplitudefactor,modephasefactor,e1,e2)
     % Addition of LG modes
     if modetype == 1
@@ -292,7 +339,7 @@ function [modeA,modeB,Jx,Jy] = VectorBeam(X,Y,R,THETA,z,wavelength,w0,pA,pB,lA,l
     if modetype == 3
     %Feel free to add the modes you want at each vector component with
     %any phase and amplitude relations:
-        modeA = LaguerreGauss(z, wavelength,w0,0,-4, R, THETA)+ LaguerreGauss(z, wavelength,w0,0,8, R, THETA);
+        modeA = LaguerreGauss(z, wavelength,w0,0,0, R, THETA)+ LaguerreGauss(z, wavelength,w0,1,0, R, THETA);
         modeB = LaguerreGauss(z,wavelength,w0,0,-1,R,THETA);
     end
 
@@ -313,6 +360,9 @@ function PlotModeIntensityandPhase (range,x,y,X,Y,modeA,modeB,interpolateintensi
         modeproperties(1) = subplot(2,2,1);
         
         JxA = abs(modeA);
+         %%%%%
+%         JxA = abs(modeA + modeB);
+        %%%%%
         JyA = 0;
         PlotIntensity(range,x,y,X,Y,JxA,JyA,interpolateintensity,numberofpointsinterpolatedintensity)
         set(gca,'xtick',[])
@@ -322,12 +372,20 @@ function PlotModeIntensityandPhase (range,x,y,X,Y,modeA,modeB,interpolateintensi
         colormap(modeproperties(1),hot)
         colorbar
         title('mode A intensity')
+        
+
 
         %Phase Mode A
         modeproperties(2) = subplot(2,2,2);
         modeAphase = angle(modeA);
         modeAphase = modeAphase - 2*pi*floor(modeAphase/(2*pi));
-
+%         
+%         phaseC = angle(modeA + modeB);
+%         modeCphase = phaseC - 2*pi*floor(phaseC/(2*pi));
+%         modeAphase = modeCphase;
+%         modeAphase(modeAphase>6.2) = 0;
+ 
+ 
         imagesc(x,y,modeAphase);
         caxis([0 2*pi])
         colormap(modeproperties(2),jet)
